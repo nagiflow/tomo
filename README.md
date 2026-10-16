@@ -13,7 +13,7 @@ Tomo reads new Gmail, Outlook and Slack messages, sorts them, drafts replies in 
 ![Platform: macOS 12+](https://img.shields.io/badge/platform-macOS%2012%2B-lightgrey)
 ![Built with Tauri 2](https://img.shields.io/badge/built%20with-Tauri%202-24c8db)
 
-[Features](#features) · [Download](#install) · [Connect your accounts](#connect-your-accounts) · [Privacy](#local-data-and-privacy) · [Contributing](#contributing)
+[How it works](#how-it-works) · [Download](#install) · [Connect your accounts](#connect-your-accounts) · [Privacy](#local-data-and-privacy) · [Contributing](CONTRIBUTING.md)
 
 <br>
 
@@ -23,6 +23,39 @@ Tomo reads new Gmail, Outlook and Slack messages, sorts them, drafts replies in 
 
 </div>
 
+## How it works
+
+```
+   Gmail · Outlook · Slack
+              │  a new message arrives
+              ▼
+  ┌───────────────────────┐
+  │ 1  Read and sort      │  Does it need a reply? How risky is it?
+  │                       │  The AI decides; fixed safety checks back it up.
+  └───────────┬───────────┘
+              ├──────────────▶  Newsletters and FYIs are filed, no reply
+              ▼
+  ┌───────────────────────┐
+  │ 2  Make a plan        │  Looks up your calendar and Drive, follows your
+  │                       │  rules.md, drafts the reply in your style.md
+  └───────────┬───────────┘
+              ▼
+  ┌───────────────────────┐
+  │ 3  You decide         │  Edit or remove steps, or just say what to change
+  │                       │  ("make it 5:30"), then approve
+  └───────────┬───────────┘
+              │                 (Easy replies can skip this step if you allow it)
+              ▼
+  ┌───────────────────────┐
+  │ 4  Tomo runs the plan │  Move meeting ─▶ share file ─▶ ... ─▶ send reply
+  │                       │  in order; it stops and tells you if a step fails
+  └───────────┬───────────┘
+              ▼
+       Activity log         What happened, and why
+```
+
+Everything runs on your Mac. Tomo talks directly to your mail, Slack, Google tools and the AI provider you chose. There is no Tomo server in between.
+
 ## Features
 
 - **Plans, not just drafts.** For each message Tomo proposes ordered steps across your tools, such as moving a Google Calendar event, sharing a Drive file, creating a Doc, Sheet or Slides deck, posting to Slack, or handing a task to Codex. A reply comes last and is sent only after the earlier steps succeed.
@@ -31,7 +64,7 @@ Tomo reads new Gmail, Outlook and Slack messages, sorts them, drafts replies in 
 - **Standing rules.** `rules.md` holds instructions such as "when an invoice arrives, post it in #finance".
 - **Lives in the menu bar.** Review and approve from a compact popover. Closing the main window leaves Tomo running in the background.
 - **Explains itself.** Every decision lands in a searchable Activity log with the reason, the risk and exactly what was sent.
-- **Local-first and encrypted.** Messages, drafts and history are AES-256-GCM encrypted in a local SQLite database. There is no Tomo server.
+- **Local-first and encrypted.** Messages, drafts and history are AES-256-GCM encrypted in a local SQLite database.
 
 <table>
   <tr>
@@ -57,56 +90,6 @@ Tomo reads new Gmail, Outlook and Slack messages, sorts them, drafts replies in 
 [**Download the latest Tomo.dmg**](https://github.com/nagiflow/tomo/releases/latest) (macOS 12 or newer, Apple silicon and Intel).
 
 Open the `.dmg`, drag **Tomo** into Applications, and launch it. The app is signed and notarized by Apple, so it opens without security warnings and needs nothing else installed. Tomo then walks you through connecting your accounts.
-
-## Build from source
-
-### Prerequisites
-
-- macOS with Xcode Command Line Tools (`xcode-select --install`)
-- [Node.js](https://nodejs.org) 22 or newer
-- [pnpm](https://pnpm.io) 12
-- Stable [Rust](https://rustup.rs)
-
-### Run the desktop app
-
-```sh
-git clone https://github.com/nagiflow/tomo.git
-cd tomo
-pnpm install
-pnpm desktop:dev
-```
-
-The app starts with empty local data and walks you through onboarding.
-
-### Try it without any accounts
-
-```sh
-pnpm dev
-```
-
-Open <http://127.0.0.1:1420>. The browser preview uses sample conversations and keeps its state in the tab's session storage. It **does not connect accounts or send email**.
-
-### Build an app bundle
-
-```sh
-pnpm desktop:build                          # release bundle
-pnpm desktop:build --debug --bundles app    # faster development bundle
-```
-
-Bundles are written to `src-tauri/target/release/bundle/`. Local builds get an ad hoc signature; set `APPLE_SIGNING_IDENTITY` to sign with your own certificate. A build without a stable certificate asks for Keychain approval once per launch; approve it to keep access to your encrypted data.
-
-### Publishing a release
-
-Pushing a tag that matches `version` in `src-tauri/tauri.conf.json` (for example `git tag v0.1.0 && git push origin v0.1.0`) runs [`release.yml`](.github/workflows/release.yml). It builds a universal `.dmg`, signs it with the Developer ID certificate, notarizes it with Apple, and attaches it to a draft GitHub release for a maintainer to publish. The workflow reads these repository secrets:
-
-| Secret | What it is |
-| --- | --- |
-| `APPLE_CERTIFICATE` | The "Developer ID Application" certificate exported as `.p12`, base64-encoded (`base64 -i cert.p12 \| pbcopy`) |
-| `APPLE_CERTIFICATE_PASSWORD` | The password chosen when exporting the `.p12` |
-| `KEYCHAIN_PASSWORD` | Any random string for the temporary CI keychain |
-| `APPLE_API_KEY` | The Key ID of an App Store Connect API key (Users and Access → Integrations), used to notarize |
-| `APPLE_API_ISSUER` | The Issuer ID shown above the keys on that page |
-| `APPLE_API_KEY_P8` | The contents of that key's `AuthKey_<KeyID>.p8` file |
 
 ## Connect your accounts
 
@@ -139,56 +122,16 @@ Model judgment is backed by deterministic checks. Sensitive topics, commitments,
 
 ## Local data and privacy
 
-- **Encrypted at rest.** Message content, drafts, account metadata, preferences, rules and history are AES-256-GCM encrypted before they reach SQLite. The key lives in the macOS Keychain and is read once per launch. OAuth tokens and API keys sit in a separate file encrypted with that key. Debug builds keep the key in a user-only file instead, so the Keychain doesn't prompt after every rebuild.
+- **Encrypted at rest.** Message content, drafts, account metadata, preferences, rules and history are AES-256-GCM encrypted before they reach SQLite. The key lives in the macOS Keychain and is read once per launch. OAuth tokens and API keys sit in a separate file encrypted with that key.
 - **What leaves your Mac.** With your consent, a bounded amount of each new message and its thread is sent to the AI provider you chose, with `store: false`. That provider's retention terms still apply.
 - **Disconnecting** an inbox deletes its credentials and its locally cached messages, drafts and history. It does not touch mail held by the provider; revoke access in your provider account if you want that too.
 - **No double sends.** Send attempts are recorded before they go out. An uncertain outcome stays blocked until it is confirmed with the provider, and minimal send records survive history deletion and resets.
 
-## Architecture
-
-```
-React + TypeScript UI (Zustand, Radix)        src/
-        │  typed Tauri commands
-Rust backend                                  src-tauri/src/
-  ├─ engine.rs      polling, triage, planning pipeline
-  ├─ plans.rs       plan generation, validation, execution
-  ├─ ai.rs          OpenAI Responses API with strict JSON schemas
-  ├─ connectors.rs  Gmail / Outlook · slack.rs · workspace.rs (Google tools) · codex.rs
-  ├─ policy.rs      deterministic auto-send safety checks
-  ├─ auth.rs        OAuth + PKCE through the system browser
-  └─ storage.rs     encrypted SQLite
-```
-
-Tomo calls official provider APIs only and never automates a browser to read your messages.
-
 ## Contributing
 
-Contributions are welcome: bug reports, fixes, docs, and new tool integrations.
+Bug reports, fixes, docs and new tool integrations are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to build Tomo from source, try it without any accounts, and run the checks.
 
-1. **Open an issue first** for anything bigger than a small fix, so we can agree on the approach.
-2. Fork the repo, create a branch, and make your change. Use `pnpm dev` for UI work; it needs no accounts.
-3. Run the same checks CI runs:
-
-   ```sh
-   pnpm build && pnpm test
-   pnpm exec playwright install chromium && pnpm test:e2e
-   cargo fmt --manifest-path src-tauri/Cargo.toml --check
-   cargo test --manifest-path src-tauri/Cargo.toml
-   cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
-   ```
-
-4. Open a pull request that describes what changed and how you tested it. Include a screenshot for UI changes.
-
-**Guidelines**
-
-- Keep it small: the shortest change that solves the problem, matching the style of the code around it.
-- Anything that sends, posts, shares or deletes must stay behind human approval and the checks in `policy.rs`. Changes that weaken a safety check need a clear reason in the PR.
-- Never commit credentials, OAuth client secrets or real message content. Use the sample data in `src/services/preview.ts`.
-- Changed the UI? Refresh the README images with `pnpm dev` running and then `node scripts/readme-media.mjs` (needs `ffmpeg`).
-
-The fixture tests can't prove live sign-in, real AI inference or delivery. See [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) for what has been verified.
-
-### Reporting security issues
+## Security
 
 Please don't open a public issue for a vulnerability. Report it privately through [GitHub security advisories](https://github.com/nagiflow/tomo/security/advisories/new).
 
