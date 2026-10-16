@@ -52,6 +52,7 @@ jobs:
           echo "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
           echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
       - uses: tauri-apps/tauri-action@v0
+        id: tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
@@ -62,3 +63,15 @@ jobs:
           releaseBody: Download the .dmg below, open it, and drag Tomo to Applications.
           releaseDraft: true
           args: --target universal-apple-darwin
+      # Tauri notarizes only the .app; a downloaded .dmg that is not notarized itself can be refused
+      # by Gatekeeper on open. Notarize and staple it too, then replace the uploaded copy.
+      - name: Notarize the .dmg
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          dmg=$(ls src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg)
+          xcrun notarytool submit "$dmg" --key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY" --issuer "$APPLE_API_ISSUER" --wait
+          xcrun stapler staple "$dmg"
+          gh release upload "v${{ steps.tauri.outputs.appVersion }}" "$dmg" --clobber
