@@ -4,7 +4,6 @@ use crate::{
     AppState,
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -41,7 +40,7 @@ pub fn open_url(url: &str) {
 }
 pub fn random() -> String {
     let mut b = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut b);
+    rand::fill(&mut b);
     URL_SAFE_NO_PAD.encode(b)
 }
 pub fn load(id: &str) -> Result<Option<Tokens>, String> {
