@@ -9,16 +9,18 @@ permissions:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+env:
+  # CI never debugs its builds: no debug info means less to compile, link and cache.
+  CARGO_PROFILE_DEV_DEBUG: 0
+  CARGO_PROFILE_TEST_DEBUG: 0
+  CARGO_TERM_COLOR: always
+# Ubuntu only: macOS runners are kept for release.yml, which builds the signed app.
+# The jobs run side by side; the run takes as long as the slowest one.
 jobs:
-  # Ubuntu only: macOS runners are kept for release.yml, which builds the signed app.
-  linux:
+  web:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      # What Tauri needs to compile on Linux.
-      - run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev libdbus-1-dev pkg-config
       - uses: pnpm/action-setup@v6
         with:
           version: 12
@@ -26,17 +28,37 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm test
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+  rust:
+    strategy:
+      fail-fast: false
+      matrix:
+        task: [test, lint]
+    name: rust-${{ matrix.task }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # What Tauri needs to compile on Linux.
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev libdbus-1-dev pkg-config
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - run: pnpm test
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e
-      - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
-      - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
-      - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
+          # PRs restore main's cache but do not save their own: each copy is about 1 GB.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      # tauri::generate_context! embeds the built frontend, so the folder must exist; empty will do.
+      - run: mkdir -p dist
+      - if: matrix.task == 'test'
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+      - if: matrix.task == 'lint'
+        run: |
+          cargo fmt --manifest-path src-tauri/Cargo.toml --check
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
