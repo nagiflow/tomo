@@ -41,20 +41,73 @@ Bundles are written to `src-tauri/target/release/bundle/`. Local builds get an a
 
 ## Architecture
 
+Tomo is a Tauri app: a React UI on top of a Rust backend that owns every account, AI call, write and byte of storage. The UI never talks to a provider itself.
+
+### Components
+
 ```
-React + TypeScript UI (Zustand, Radix)        src/
-        │  typed Tauri commands
-Rust backend                                  src-tauri/src/
-  ├─ engine.rs      polling, triage, planning pipeline
-  ├─ plans.rs       plan generation, validation, execution
-  ├─ ai.rs          OpenAI Responses API with strict JSON schemas
-  ├─ connectors.rs  Gmail / Outlook · slack.rs · workspace.rs (Google tools) · codex.rs
-  ├─ policy.rs      deterministic auto-send safety checks
-  ├─ auth.rs        OAuth + PKCE through the system browser
-  └─ storage.rs     encrypted SQLite
+┌──────────────────────── Tomo.app (your Mac) ────────────────────────────┐
+│                                                                         │
+│  React + TypeScript UI   src/            Inbox · Activity · Settings ·  │
+│  (Zustand, Radix)                        menu bar popover               │
+│        │  typed Tauri commands    ▲  "tomo:updated" event → re-fetch    │
+│        ▼                          │     the snapshot                    │
+│  Rust backend   src-tauri/src/                                          │
+│   ├─ engine.rs      15 s sync loop, triage and planning pipeline        │
+│   ├─ plans.rs       plan generation, validation, ordered execution      │
+│   ├─ policy.rs      deterministic auto-send safety checks               │
+│   ├─ ai.rs          OpenAI Responses API, strict JSON schemas           │
+│   ├─ connectors.rs  Gmail and Outlook        slack.rs   Slack           │
+│   ├─ workspace.rs   Calendar, Drive, Docs, Sheets, Slides, Contacts     │
+│   ├─ codex.rs       runs `codex exec` in the folder you chose           │
+│   ├─ auth.rs        OAuth + PKCE through the system browser             │
+│   └─ storage.rs     AES-256-GCM encrypted SQLite ◀── key in Keychain    │
+│                                                                         │
+└─────┬───────────────┬────────────────┬──────────────────┬───────────────┘
+      │ HTTPS         │ WebSocket      │ HTTPS            │ HTTPS
+      ▼               ▼                ▼                  ▼
+  Gmail, Outlook   Slack            Google             OpenAI
+  (polled)         (Socket Mode)    Workspace APIs     (or ChatGPT sign-in)
 ```
 
-Tomo calls official provider APIs only and never automates a browser to read messages.
+### From a new message to a sent reply
+
+```
+ engine::synchronize, every 15 s
+   │  fetch new mail (Gmail history cursor, Outlook) · Slack events arrive on the socket
+   ▼
+ message saved, encrypted ─────────────────────────────────────────▶ storage
+   │
+   ▼
+ engine::process
+   ├─ automated mail (newsletter, notification) ─────────────▶ filed, no reply
+   ├─ 1 screen     new conversation: AI sees sender + subject only
+   ├─ 2 triage     AI session opens with the thread + style.md:
+   │               category, risk, tag and a draft in one call
+   ├─ 3 risk check AI re-reads the draft; policy.rs applies fixed checks
+   │               (sensitive topics, money, commitments). Auto-send also
+   │               needs a sender you have written to before
+   ├─ 4 plan       plans::generate, in the same AI session:
+   │               lookups (calendar, Drive) → ordered steps → validate()
+   │
+   ▼
+ Approval saved ──▶ "tomo:updated" ──▶ UI shows the plan
+   │
+   │  you edit, remove steps or give an instruction (revise_plan)
+   │  then approve (approve_plan); "Send the easy ones" or a rule can skip this
+   ▼
+ plans::execute, one step at a time, stopping at the first failure
+   ├─ calendar / drive / docs / sheets / slides ──▶ workspace.rs ──▶ Google
+   ├─ slack.post ─────────────────────────────────▶ slack.rs ──────▶ Slack
+   ├─ codex.run ──────────────────────────────────▶ codex.rs ──────▶ local process
+   └─ mail.reply (always last) ───────────────────▶ connectors.rs ─▶ Gmail / Outlook
+         send claim saved before the request; an unconfirmed outcome stays blocked
+   │
+   ▼
+ Activity entry: what ran, what was sent, and why
+```
+
+What leaves the Mac goes straight to the provider involved: message content to the AI provider (with `store: false`) and actions to the service they act on. Tomo calls official provider APIs only and never automates a browser to read messages.
 
 ## Making a change
 
