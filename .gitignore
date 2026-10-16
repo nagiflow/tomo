@@ -1,0 +1,22 @@
+node_modules/
+dist/
+src-tauri/target/
+playwright-report/
+test-results/
+.env
+.env.*
+!.env.example
+.DS_Store
+*.db
+*.db-wal
+*.db-shm
+*.tsbuildinfo
+src-tauri/gen/
+# signing keys and certificates
+*.p8
+*.p12
+*.pem
+*.key
+*.cer
+*.mobileprovision
+*.provisionprofile

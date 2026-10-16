@@ -1,0 +1,48 @@
+{
+  "scope": "Main process only; excludes WebKit helpers. No connected accounts.",
+  "sampleIntervalSeconds": 2,
+  "samples": [
+    {
+      "rssKiB": 102352,
+      "cpuPercent": 0.0
+    },
+    {
+      "rssKiB": 102352,
+      "cpuPercent": 0.0
+    },
+    {
+      "rssKiB": 102352,
+      "cpuPercent": 0.0
+    },
+    {
+      "rssKiB": 102352,
+      "cpuPercent": 0.0
+    },
+    {
+      "rssKiB": 102320,
+      "cpuPercent": 0.0
+    },
+    {
+      "rssKiB": 102432,
+      "cpuPercent": 0.4
+    },
+    {
+      "rssKiB": 102672,
+      "cpuPercent": 1.1
+    },
+    {
+      "rssKiB": 102656,
+      "cpuPercent": 0.6
+    },
+    {
+      "rssKiB": 102656,
+      "cpuPercent": 0.4
+    },
+    {
+      "rssKiB": 102592,
+      "cpuPercent": 2.0
+    }
+  ],
+  "meanCpuPercent": 0.45,
+  "maxRssMiB": 100.265625
+}
