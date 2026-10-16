@@ -1,6 +1,6 @@
 use crate::models::{Activity, Approval, Settings};
 use aes_gcm::{
-    aead::{rand_core::RngCore, Aead, KeyInit, OsRng},
+    aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
 };
 use rusqlite::{params, Connection, OptionalExtension};
@@ -21,10 +21,10 @@ impl Store {
     fn encrypt<T: Serialize>(&self, v: &T) -> Result<Vec<u8>, String> {
         let plain = serde_json::to_vec(v).map_err(|e| e.to_string())?;
         let mut nonce = [0u8; 12];
-        OsRng.fill_bytes(&mut nonce);
+        rand::fill(&mut nonce);
         let encrypted = self
             .cipher
-            .encrypt(Nonce::from_slice(&nonce), plain.as_ref())
+            .encrypt(&Nonce::from(nonce), plain.as_ref())
             .map_err(|_| "Encryption failed")?;
         Ok([nonce.to_vec(), encrypted].concat())
     }
@@ -34,7 +34,10 @@ impl Store {
         }
         let plain = self
             .cipher
-            .decrypt(Nonce::from_slice(&bytes[..12]), &bytes[12..])
+            .decrypt(
+                &Nonce::try_from(&bytes[..12]).map_err(|_| "Encrypted record is damaged")?,
+                &bytes[12..],
+            )
             .map_err(|_| "Could not decrypt local data")?;
         serde_json::from_slice(&plain).map_err(|e| e.to_string())
     }
@@ -245,7 +248,11 @@ impl Vault {
         let values = match std::fs::read(path) {
             Ok(bytes) if bytes.len() >= 28 => {
                 let plain = cipher
-                    .decrypt(Nonce::from_slice(&bytes[..12]), &bytes[12..])
+                    .decrypt(
+                        &Nonce::try_from(&bytes[..12])
+                            .map_err(|_| "Encrypted record is damaged")?,
+                        &bytes[12..],
+                    )
                     .map_err(|_| "Could not decrypt saved sign-ins")?;
                 serde_json::from_slice(&plain).map_err(|e| e.to_string())?
             }
@@ -262,10 +269,10 @@ impl Vault {
             return Ok(());
         };
         let mut nonce = [0u8; 12];
-        OsRng.fill_bytes(&mut nonce);
+        rand::fill(&mut nonce);
         let plain = serde_json::to_vec(&self.values).map_err(|e| e.to_string())?;
         let encrypted = cipher
-            .encrypt(Nonce::from_slice(&nonce), plain.as_ref())
+            .encrypt(&Nonce::from(nonce), plain.as_ref())
             .map_err(|_| "Encryption failed")?;
         // Write beside the file and rename, so a crash mid-write cannot lose every sign-in.
         let temp = path.with_extension("tmp");
@@ -332,7 +339,7 @@ pub fn database_key(dir: &Path) -> Result<Vec<u8>, String> {
         Some(saved) => STANDARD.decode(saved).map_err(|e| e.to_string())?,
         None => {
             let mut key = vec![0u8; 32];
-            OsRng.fill_bytes(&mut key);
+            rand::fill(&mut key);
             if !cfg!(debug_assertions) {
                 keychain_set("database-key", &STANDARD.encode(&key))?;
             }
