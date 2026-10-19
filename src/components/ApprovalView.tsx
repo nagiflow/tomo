@@ -228,7 +228,7 @@ export function ApprovalDetail({
         </button>
         <button
           className="button"
-          disabled={busy || item.status !== "pending"}
+          disabled={busy || !["pending", "uncertain"].includes(item.status)}
           onClick={() => run("dismiss_reply", { id: item.id })}
         >
           Dismiss

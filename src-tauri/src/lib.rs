@@ -38,7 +38,8 @@ pub struct AppState {
 }
 type Shared = Arc<AppState>;
 #[tauri::command]
-fn get_snapshot(state: State<Shared>) -> Result<Snapshot, String> {
+// async so it runs off the UI thread: it waits on storage and the Keychain, which froze the window.
+async fn get_snapshot(state: State<'_, Shared>) -> Result<Snapshot, String> {
     let store = state.store.lock().map_err(|_| "Storage busy")?;
     let mut settings = store.settings()?;
     settings.google_client_secret.clear();
@@ -260,7 +261,8 @@ fn dismiss_reply(state: State<Shared>, id: String) -> Result<(), String> {
     let mut item = store
         .get::<Approval>("approval", &id)?
         .ok_or("Approval no longer exists")?;
-    if item.status != "pending" {
+    // "uncertain" too: a stopped plan can no longer be sent, so Dismiss is the only way to clear it.
+    if item.status != "pending" && item.status != "uncertain" {
         return Err("This item is no longer pending".into());
     }
     item.status = "dismissed".into();
